@@ -1,0 +1,122 @@
+{
+  "P01_zone_deletion": {
+    "before_centres": {
+      "(0, 0)": [
+        50.0,
+        85.0
+      ],
+      "(100, 0)": [
+        1050.0,
+        85.0
+      ]
+    },
+    "after_polygons": {
+      "(0, 0)": [
+        [
+          1000.0,
+          0.0
+        ],
+        [
+          1100.0,
+          0.0
+        ],
+        [
+          1100.0,
+          170.0
+        ],
+        [
+          1000.0,
+          170.0
+        ]
+      ],
+      "(100, 0)": []
+    },
+    "string_coordinates": {
+      "String 1": [
+        [
+          0,
+          0
+        ],
+        [
+          100,
+          0
+        ]
+      ]
+    }
+  },
+  "P02_regeneration": {
+    "old_panel_centre": [
+      50.0,
+      85.0
+    ],
+    "new_panel_centre": [
+      350.0,
+      85.0
+    ],
+    "string_still_connected": true
+  },
+  "P03_P04_save": {
+    "panels_after_prepare": "{(0, 0): 1}",
+    "orphan_retained_in_state": true,
+    "orphan_removed_in_normalized_copy": true
+  },
+  "P14_design_fingerprint": {
+    "unchanged_after_scale_and_reserve_change": true
+  },
+  "P09_stale_module_ratings": {
+    "vmp_v": 40,
+    "imp_a": 12,
+    "pmax_w": 500.0
+  },
+  "P16_P17_energy": {
+    "unconnected_panel_production_kwh": 2400.0,
+    "inverter_positions_present": false
+  },
+  "attached_projects": {
+    "Usine_Frimo_562.json": {
+      "module_count": 562,
+      "project_name": "Projet Importé",
+      "unassigned_modules": 0,
+      "duplicate_module_memberships": 0,
+      "zones": 11,
+      "zones_missing_cable_height": 11,
+      "module_sheet_rows": 1,
+      "string_overrides": 0,
+      "linear_mass_inputs": 0,
+      "audit_message_count": 4,
+      "metadata_missing_electrical_checks": true,
+      "zone_formula_panel_total": 578.0,
+      "layout_issue_count": 0
+    },
+    "Usine_Frimo_462.json": {
+      "module_count": 462,
+      "project_name": "Projet Importé",
+      "unassigned_modules": 0,
+      "duplicate_module_memberships": 0,
+      "zones": 8,
+      "zones_missing_cable_height": 8,
+      "module_sheet_rows": 1,
+      "string_overrides": 0,
+      "linear_mass_inputs": 0,
+      "audit_message_count": 3,
+      "metadata_missing_electrical_checks": true,
+      "zone_formula_panel_total": 482.0,
+      "layout_issue_count": 0
+    },
+    "Usine_Frimo_517.json": {
+      "module_count": 537,
+      "project_name": "Projet Importé",
+      "unassigned_modules": 0,
+      "duplicate_module_memberships": 0,
+      "zones": 9,
+      "zones_missing_cable_height": 0,
+      "module_sheet_rows": 1,
+      "string_overrides": 0,
+      "linear_mass_inputs": 0,
+      "audit_message_count": 4,
+      "metadata_missing_electrical_checks": false,
+      "zone_formula_panel_total": 558.0,
+      "layout_issue_count": 0
+    }
+  }
+}

@@ -1,0 +1,29 @@
+{
+  "Usine_Frimo_462.json": {
+    "panels": 462,
+    "zones": 8,
+    "layout_issues": 0,
+    "zone_formula_panel_count": 462.0,
+    "source_sha256": "31a7172d0378b70c3a537064d62d29b8941b7307d560e805a5d22608acc5995e",
+    "source_unchanged": true,
+    "json_roundtrip": "passed"
+  },
+  "Usine_Frimo_517.json": {
+    "panels": 537,
+    "zones": 9,
+    "layout_issues": 0,
+    "zone_formula_panel_count": 537.0,
+    "source_sha256": "ba56eaa46477802a414234dcd8647f28c09d6c959062a161ac6e08690275a515",
+    "source_unchanged": true,
+    "json_roundtrip": "passed"
+  },
+  "Usine_Frimo_562.json": {
+    "panels": 562,
+    "zones": 11,
+    "layout_issues": 0,
+    "zone_formula_panel_count": 562.0,
+    "source_sha256": "a748101d66e4a7e50fba9246e6373e59e1cf167717bf08460078c93836872189",
+    "source_unchanged": true,
+    "json_roundtrip": "passed"
+  }
+}

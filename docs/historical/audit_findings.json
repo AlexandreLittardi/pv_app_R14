@@ -1,0 +1,322 @@
+[
+  {
+    "id": "P01",
+    "priority": "Haute",
+    "status": "R",
+    "title": "Suppression de zone : références de panneaux décalées",
+    "description": "Supprimer une zone renumérote les row_base des zones suivantes sans migrer panels, strings et affectations. Reproduction : le panneau (0,0) se retrouve sur l’ancienne deuxième zone et (100,0) ne possède plus de rectangle physique.",
+    "source": "mixins/zone_tools.py: delete_active_zone ; mixins/installation_geometry.py: _recalculate_zone_grids"
+  },
+  {
+    "id": "P02",
+    "priority": "Haute",
+    "status": "R",
+    "title": "Régénération : strings conservés sur une géométrie différente",
+    "description": "Après déplacement, redimensionnement, angle ou changement de dimensions des modules, les coordonnées de cellules réutilisées conservent leurs anciennes connexions. Reproduction : le centre passe de (50,85) à (350,85), le string reste affecté à (0,0).",
+    "source": "mixins/zone_tools.py: generate_panels_from_zones ; mixins/installation_geometry.py: generate_panels_from_zones ; mixins/stringing_tools.py: update_dimensions"
+  },
+  {
+    "id": "P03",
+    "priority": "Haute",
+    "status": "R",
+    "title": "Identifiants modifiés lors du dessin et de la sauvegarde",
+    "description": "Lorsque continuous_panel_numbers est actif, draw_grid et _prepare_project_save renumérotent les panneaux. Un simple enregistrement peut rendre obsolètes des identifiants déjà utilisés sur un plan ou un export. Reproduction : panneau 99 devenu 1.",
+    "source": "mixins/project_integrity.py: draw_grid, _prepare_project_save"
+  },
+  {
+    "id": "P04",
+    "priority": "Haute",
+    "status": "R",
+    "title": "Nettoyage incomplet avant sauvegarde",
+    "description": "normalize_project nettoie une copie, mais _prepare_project_save ne reporte pas les strings et affectations nettoyées dans l’état. save_project sérialise ensuite ces champs de l’état initial. Reproduction : une coordonnée orpheline retirée de la copie reste dans self.strings.",
+    "source": "mixins/project_integrity.py: _prepare_project_save ; mixins/project_io.py: save_project"
+  },
+  {
+    "id": "P05",
+    "priority": "Haute",
+    "status": "C",
+    "title": "Import non transactionnel",
+    "description": "Le chargement modifie le nom, le chemin actif et de nombreux champs avant d’avoir validé tous les paramètres. Une erreur tardive peut laisser un mélange du projet précédent et du projet importé, avec le nouveau chemin de sauvegarde.",
+    "source": "mixins/project_io.py: _load_project_file"
+  },
+  {
+    "id": "P06",
+    "priority": "Haute",
+    "status": "C",
+    "title": "Sauvegarde non atomique, sans copie de secours",
+    "description": "Le JSON existant est ouvert directement en mode w. Une interruption ou erreur pendant json.dump peut laisser un fichier tronqué. L’image est enregistrée séparément ; son échec est seulement imprimé et ne bloque pas la réussite du JSON.",
+    "source": "mixins/project_io.py: save_project"
+  },
+  {
+    "id": "P07",
+    "priority": "Haute",
+    "status": "C",
+    "title": "Pas de protection des modifications non enregistrées",
+    "description": "Pas de suivi dirty ni de demande de sauvegarde avant ouverture d’un autre projet ou fermeture de la fenêtre. L’autosauvegarde réécrit le projet actif toutes les cinq minutes ; il n’existe pas d’historique local de sauvegardes.",
+    "source": "main.py ; app.py: __init__ ; mixins/project_io.py: import_project, _auto_save"
+  },
+  {
+    "id": "P08",
+    "priority": "Moyenne",
+    "status": "L",
+    "title": "Pas d’annuler/rétablir",
+    "description": "Aucun historique undo/redo pour panneaux, zones, strings, affectations et suppressions. Une mauvaise manipulation géométrique ne peut pas être annulée depuis l’interface.",
+    "source": "app.py ; mixins/editor_interactions.py ; mixins/zone_tools.py ; mixins/stringing_tools.py"
+  },
+  {
+    "id": "P09",
+    "priority": "Haute",
+    "status": "R",
+    "title": "Anciennes valeurs électriques conservées",
+    "description": "Si une fiche module perd Imp, Vmp, Voc ou Isc, _sync_module_power ne retire pas les anciennes valeurs de diagram_electrical_specs. Reproduction : supprimer Vmp de la fiche conserve vmp_v=40 dans le schéma.",
+    "source": "mixins/project_integrity.py: _sync_module_power"
+  },
+  {
+    "id": "P10",
+    "priority": "Haute",
+    "status": "C",
+    "title": "Catalogue et onduleurs placés peuvent diverger",
+    "description": "L’onduleur placé contient une copie material_row. Les modifications ultérieures de sa fiche ne mettent pas automatiquement à jour cette copie ; certains calculs utilisent la fiche et d’autres la copie.",
+    "source": "mixins/inverter_tools.py ; mixins/material_tools.py ; self_consumption.py: production_from_program"
+  },
+  {
+    "id": "P11",
+    "priority": "Haute",
+    "status": "C",
+    "title": "Références constructeur imposées par défaut",
+    "description": "normalize_project remplace des modèles ee par une référence Deye précise. Le schéma détaillé peut aussi afficher HYBRID_MODEL ou BESS_MODEL en l’absence de référence saisie. Une donnée absente peut ainsi prendre l’apparence d’un modèle choisi.",
+    "source": "project_validation.py: normalize_project ; detailed_electrical.py: HYBRID_MODEL, BESS_MODEL, build_detailed_model"
+  },
+  {
+    "id": "P12",
+    "priority": "Haute",
+    "status": "L",
+    "title": "Contrôles électriques globaux et partiels",
+    "description": "Les valeurs de contrôle sont communes à tous les modules/onduleurs. Voc à froid, Vmp STC et certains courants sont vérifiés, mais Vmp à chaud, gain bifacial, limites propres à chaque entrée, sélectivité et conformité d’installation ne le sont pas complètement. Les configurations multi-modèles sont mal représentées.",
+    "source": "project_validation.py: audit_project ; detailed_electrical.py: build_detailed_model"
+  },
+  {
+    "id": "P13",
+    "priority": "Haute",
+    "status": "C",
+    "title": "Deux calculs DC peuvent donner des résultats différents",
+    "description": "Le tableau String sizing tient compte des overrides courant/tension par string ; le schéma électrique détaillé utilise son propre couple Imp/Vmp et une section saisie séparément dans electrical_design. Les overrides de R12 n’y sont pas intégrés.",
+    "source": "mixins/string_sizing.py: size_string ; detailed_electrical.py: build_detailed_model"
+  },
+  {
+    "id": "P14",
+    "priority": "Haute",
+    "status": "R",
+    "title": "Signature du dossier électrique incomplète",
+    "description": "source_fingerprint omet notamment px_per_mm, dimensions des panneaux, roof_polygons et routing_settings. Reproduction : modifier l’échelle et la réserve laisse la signature inchangée si le plan de routes n’a pas encore été recalculé.",
+    "source": "detailed_electrical.py: source_fingerprint"
+  },
+  {
+    "id": "P15",
+    "priority": "Haute",
+    "status": "C",
+    "title": "Météo importée réutilisable avec une mauvaise orientation",
+    "description": "Un profil GTI téléchargé pour une inclinaison/azimut/localisation reste utilisable après modification de ces valeurs. La signature exige un nouveau calcul, mais production_from_program ne vérifie pas que les métadonnées query correspondent aux paramètres courants.",
+    "source": "mixins/self_consumption_ui.py: _download_historical_weather ; self_consumption.py: production_from_program"
+  },
+  {
+    "id": "P16",
+    "priority": "Haute",
+    "status": "R",
+    "title": "Production indépendante du raccordement réel",
+    "description": "La production compte tous les panneaux et écrête à la somme des puissances AC, sans production/écrêtage par bloc ni exigence de connexion complète string–MPPT. Reproduction : un panneau sans onduleur placé produit de l’énergie si un bloc existe. Un onduleur sous-chargé peut compenser fictivement un autre surchargé.",
+    "source": "self_consumption.py: production_from_program"
+  },
+  {
+    "id": "P17",
+    "priority": "Haute",
+    "status": "R",
+    "title": "Puissance AC supposée et confusion kVA/kW",
+    "description": "En l’absence de Puissance (kVA) sur une copie d’onduleur, le modèle énergétique prend 125. Cette puissance apparente est utilisée comme limite en kW, sans facteur de puissance. La reproduction P16 fonctionne sans aucune fiche d’onduleur placé.",
+    "source": "self_consumption.py: production_from_program"
+  },
+  {
+    "id": "P18",
+    "priority": "Moyenne",
+    "status": "L",
+    "title": "Fuseau fixe et journées de 24 heures",
+    "description": "Le modèle énergétique et l’import météo imposent Europe/Rome. Les journées sont toujours de 24 cases ; une heure manquante est interpolée et une heure doublée moyennée. Ce n’est pas une représentation exacte des changements d’heure ni d’un site dans un autre fuseau.",
+    "source": "self_consumption.py: read_open_meteo_json, timestamps, production_from_program"
+  },
+  {
+    "id": "P19",
+    "priority": "Moyenne",
+    "status": "L",
+    "title": "Consommations manquantes estimées automatiquement",
+    "description": "Les valeurs absentes sont remplies avec la moyenne des mêmes heures des sept jours précédents, y compris des valeurs déjà estimées. Les indices sont signalés, mais il n’existe pas de choix de méthode ni d’évaluation de sensibilité ; les résultats peuvent dépendre de cette hypothèse.",
+    "source": "self_consumption.py: read_daily_excel"
+  },
+  {
+    "id": "P20",
+    "priority": "Haute",
+    "status": "C",
+    "title": "Résultats d’ombre anciens ou d’un autre projet",
+    "description": "shadow_simulation_results n’a pas de signature des entrées. Le JSON projet ne l’enregistre pas et _load_project_file ne le remet pas à zéro. Des résultats en mémoire du projet A peuvent rester après ouverture du projet B et être repris par les variables SIM_* ou le snapshot du rapport.",
+    "source": "app.py: shadow_simulation_results ; mixins/project_io.py: save_project, _load_project_file ; mixins/spreadsheet_tools.py: _get_spreadsheet_variables ; engineering_report.py: report_content"
+  },
+  {
+    "id": "P21",
+    "priority": "Moyenne",
+    "status": "C",
+    "title": "Calculs et téléchargements bloquent l’interface",
+    "description": "Les boucles annuelles, les simulations d’ombre et le téléchargement météo fonctionnent dans le fil Tkinter. update_idletasks rafraîchit les tâches de dessin mais ne rend pas ces opérations asynchrones. Pas de tâche annulable ; le téléchargement attend jusqu’à 60 secondes.",
+    "source": "mixins/self_consumption_ui.py: _calculate_self_consumption, _download_historical_weather ; mixins/shadow_simulation.py"
+  },
+  {
+    "id": "P22",
+    "priority": "Moyenne",
+    "status": "L",
+    "title": "Ombre géométrique simplifiée",
+    "description": "L’obstacle modélisé est unique, de forme simplifiée ; la perte de puissance suit la fraction ombragée. Pas de diodes bypass, mismatch électrique, masques multiples arbitraires ou détails d’obstacles relevés sur site.",
+    "source": "mixins/shadow_geometry.py ; mixins/shadow_energy.py ; self_consumption.py: production_from_program"
+  },
+  {
+    "id": "P23",
+    "priority": "Moyenne",
+    "status": "L",
+    "title": "Comparaison BESS sensible aux SOC de début/fin",
+    "description": "Les scénarios démarrent au SOC saisi et ne sont pas contraints à terminer au même SOC. Un SOC initial élevé fournit une énergie initiale dont l’origine n’est pas comptée comme PV produit sur la période. Les bilans indiquent les SOC, mais la valorisation ne corrige pas cette énergie de frontière.",
+    "source": "battery_dispatch.py: simulate_bess ; energy_economics.py: evaluate_options"
+  },
+  {
+    "id": "P24",
+    "priority": "Moyenne",
+    "status": "L",
+    "title": "BESS et rentabilité restent des modèles simplifiés",
+    "description": "Rendement et capacités constants, deux batteries partageant les mêmes limites de puissance, charge au surplus PV seulement. Pas de vieillissement, auxiliaires, indisponibilité, arbitrage horaire, financement, maintenance ni remplacement dans le payback simple. Ce sont des limites déjà documentées, pas des erreurs de bilan.",
+    "source": "battery_dispatch.py ; energy_economics.py"
+  },
+  {
+    "id": "P25",
+    "priority": "Haute",
+    "status": "L",
+    "title": "Longueurs de câbles encore estimatives",
+    "description": "Les trajets emploient réseau/polygones puis repli orthogonal direct. Les supports, pénétrations et descentes exactes ne sont pas définis ; hauteur de borne d’onduleur et réserve sont communes. Le repli direct ne prouve pas la faisabilité d’installation.",
+    "source": "mixins/cable_network.py: compute_cable_route ; mixins/two_pole_cables.py: _calculate_two_pole_route ; mixins/installation_geometry.py: _show_installation_heights"
+  },
+  {
+    "id": "P26",
+    "priority": "Haute",
+    "status": "L",
+    "title": "Section proposée : chute de tension seulement",
+    "description": "La section standard est déterminée uniquement par la chute de tension à Imp/Vmp. Pas de correction thermique, groupement, courant admissible, court-circuit ou coordination des protections. La section proposée n’est pas automatiquement la section retenue dans le dossier détaillé.",
+    "source": "mixins/notes_tools.py: calculate_dc_cable_size ; mixins/string_sizing.py: size_string"
+  },
+  {
+    "id": "P27",
+    "priority": "Moyenne",
+    "status": "L",
+    "title": "Poids du câblage : périmètre incomplet",
+    "description": "TOTAL_CABLE_WEIGHT_KG porte uniquement sur les conducteurs DC A+B string–onduleur calculés, pas sur les liaisons inter-modules, AC/BESS, chemins ni accessoires. La masse dépend de la section proposée et d’un kg/m unique par section, sans choix de modèle de câble réel. Une entrée manquante rend le total indisponible.",
+    "source": "mixins/string_sizing.py: size_string, _cable_mass_summary"
+  },
+  {
+    "id": "P28",
+    "priority": "Moyenne",
+    "status": "C",
+    "title": "Table Routes susceptible d’afficher des longueurs anciennes",
+    "description": "Le tableau Routes lit cable_network_routes sans vérifier get_two_pole_route à chaque ligne. Le tableau String sizing vérifie la provenance. Après certains changements géométriques/électriques, les deux présentations peuvent diverger jusqu’au recalcul des routes.",
+    "source": "mixins/notes_tools.py: _refresh_cable_route_table ; mixins/string_sizing.py: _refresh_string_sizing_table ; mixins/two_pole_cables.py: get_two_pole_route"
+  },
+  {
+    "id": "P29",
+    "priority": "Haute",
+    "status": "C",
+    "title": "Suppression de string : paramètres liés conservés",
+    "description": "delete_active_string et clear_all_strings ne nettoient pas systématiquement string_mppt_assignment et les nouveaux cable_string_params. Réutiliser un nom de string peut réutiliser une ancienne affectation ou d’anciens courant/tension.",
+    "source": "mixins/stringing_tools.py: delete_active_string, clear_all_strings ; mixins/string_sizing.py: _size_string_route"
+  },
+  {
+    "id": "P30",
+    "priority": "Haute",
+    "status": "R",
+    "title": "Variables de panneaux par zone incorrectes",
+    "description": "ZONE*_PANEL_COUNT utilise rows×cols, pas le nombre de panneaux effectivement présents. Les trois projets donnent respectivement 558 au lieu de 537, 578 au lieu de 562 et 482 au lieu de 462 dans la somme de ces variables.",
+    "source": "mixins/spreadsheet_tools.py: _get_zone_string_insert_vars ; audit_probes.json: attached_projects"
+  },
+  {
+    "id": "P31",
+    "priority": "Moyenne",
+    "status": "C",
+    "title": "Snapshot du rapport incomplet pour les ajouts R12",
+    "description": "project_inputs.json du rapport n’intègre ni cable_string_params ni cable_mass_by_section ; le PDF n’affiche pas les masses. Les longueurs/sections calculées sont exportées, mais les nouvelles entrées nécessaires pour reproduire le poids ou les overrides manquent.",
+    "source": "engineering_report.py: report_content ; mixins/project_integrity.py: _project_snapshot"
+  },
+  {
+    "id": "P32",
+    "priority": "Moyenne",
+    "status": "C",
+    "title": "Titres et documentation encore spécifiques à un site/version",
+    "description": "Certaines fenêtres conservent Volfrigo 516, le rapport affiche Application R11, et certains textes techniques anciens décrivent une rotation panneau par panneau alors que la grille courante tourne en bloc. Ces intitulés peuvent induire en erreur dans un projet Frimo ou une autre étude.",
+    "source": "mixins/self_consumption_ui.py ; engineering_report.py: report_content ; mixins/ui_builders.py: TECHNICAL_GUIDE"
+  },
+  {
+    "id": "P33",
+    "priority": "Moyenne",
+    "status": "C",
+    "title": "Export JPG dépendant de la vue et de Ghostscript",
+    "description": "L’export utilise le PostScript du canvas sans cadrage explicite de tout le plan puis agrandit le raster. Un plan défilé peut être incomplet ; l’agrandissement ne crée pas de détail supplémentaire et le rendu PostScript dépend de Ghostscript. Le PDF vectoriel est une autre voie existante.",
+    "source": "mixins/project_io.py: export_jpg_final"
+  },
+  {
+    "id": "P34",
+    "priority": "Moyenne",
+    "status": "L",
+    "title": "Calepinage sans jeux ni corridors automatiques",
+    "description": "La grille est bord à bord. Aucun paramètre général d’écart de montage, accès, recul périphérique ou corridor n’est appliqué automatiquement. La géométrie valide ne constitue pas une validation de l’implantation d’installation.",
+    "source": "geometry_layout.py: grid_spec ; mixins/installation_geometry.py: _valid_zone_cell ; user_guide.py"
+  },
+  {
+    "id": "P35",
+    "priority": "Haute",
+    "status": "C",
+    "title": "Polygones non validés",
+    "description": "La création accepte un polygone dès trois points, sans refuser l’auto-intersection, les points identiques ou l’aire nulle. L’édition permet aussi de créer ces cas ; les calculs de présence/routage sur un tel polygone peuvent être ambigus.",
+    "source": "mixins/paths_tools.py: _finish_polygon_draw ; mixins/editor_interactions.py: on_left_drag"
+  },
+  {
+    "id": "P36",
+    "priority": "Moyenne",
+    "status": "L",
+    "title": "Coordonnées de panneaux limitées à 100 lignes par zone",
+    "description": "La zone est encodée par index×100. Une zone au-delà de 100 lignes est refusée et les IDs physiques sont couplés à l’ordre des zones. Cette limite structurelle contribue au problème P01.",
+    "source": "mixins/installation_geometry.py: _recalculate_zone_grids"
+  },
+  {
+    "id": "P37",
+    "priority": "Moyenne",
+    "status": "C",
+    "title": "Architecture fragile à modifier",
+    "description": "De nombreux mixins redéfinissent les mêmes méthodes et partagent un état mutable. Les onglets sont identifiés par des indices numériques. Ajouter/réordonner un onglet ou modifier une méthode peut toucher d’autres comportements difficiles à isoler.",
+    "source": "app.py: PVLayoutRibbonApp ; mixins/canvas_grid.py ; mixins/responsive_ui.py"
+  },
+  {
+    "id": "P38",
+    "priority": "Moyenne",
+    "status": "C",
+    "title": "Format projet sans schéma de version strict",
+    "description": "Pas de version de schéma projet ni de validation complète avant application des champs. Des structures, coordonnées, nombres non finis ou types invalides peuvent échouer tardivement. Les migrations actuelles sont des règles implicites dans normalize_project.",
+    "source": "mixins/project_io.py: _load_project_file ; project_validation.py: normalize_project"
+  },
+  {
+    "id": "P39",
+    "priority": "Moyenne",
+    "status": "V",
+    "title": "Recette graphique et livrable Windows non validés ici",
+    "description": "Les 40 tests et l’import Python passent ; ils ne prouvent pas tous les gestes, le rendu haute densité, la mise en page des fenêtres, les exports Ghostscript ou le fonctionnement d’un exécutable Windows. La recette GUI reste non exécutée faute d’affichage. Les dépendances ne sont pas verrouillées à des versions exactes.",
+    "source": "tools/test_r11_gui.py ; requirements.txt ; main.spec"
+  },
+  {
+    "id": "P40",
+    "priority": "Moyenne",
+    "status": "V",
+    "title": "Lisibilité sur petits écrans à vérifier",
+    "description": "Les outils se répartissent sur plusieurs lignes, certains labels longs sont masqués, des panneaux latéraux ont une largeur minimale et les dialogues sont recentrés globalement. Les boutons avec labels peuvent être tronqués et certains formulaires peuvent dépasser la hauteur disponible. Aucun défaut visuel précis n’est affirmé sans recette à l’écran.",
+    "source": "mixins/responsive_ui.py: _layout_responsive, _fit_dialog, _cap_mapped_dialog ; mixins/string_sizing.py: _build_string_sizing_page"
+  }
+]

@@ -1,0 +1,177 @@
+{
+  "project_name": "New Project",
+  "panel_width_mm": 1000.0,
+  "panel_height_mm": 1700.0,
+  "continuous_panel_numbers": true,
+  "string_min_panels": "6",
+  "string_max_panels": "10",
+  "string_direction": "Auto (layout)",
+  "panel_tilt_deg": 8.0,
+  "panel_azimuth_deg": 180.0,
+  "panel_orientations": {},
+  "roof_image_path": null,
+  "scale_p1": null,
+  "scale_p2": null,
+  "scale_length_mm": 0.0,
+  "px_per_mm": 0.0,
+  "roof_zones": [],
+  "roof_polygons": [],
+  "distance_markers": [],
+  "measures": [],
+  "cable_paths": [],
+  "blocks": {},
+  "inverter_positions": {},
+  "panels": {},
+  "panel_blocks": {},
+  "strings": {
+    "String 1": []
+  },
+  "manual_strings": [],
+  "string_mppt_assignment": {},
+  "pylon_img_pos": null,
+  "pylon_ref_img_pos": null,
+  "pylon_height_mm": 3000.0,
+  "pylon_width_mm": 300.0,
+  "pylon_opacity": 1.0,
+  "north_offset_deg": 0.0,
+  "solar_latitude": 43.7384,
+  "solar_longitude": 7.4246,
+  "solar_utc_offset": 1.0,
+  "solar_day": 21,
+  "solar_month": 6,
+  "solar_hour": 12.0,
+  "panel_pmax_w": 450.0,
+  "panel_efficiency_pct": 26.470588235294116,
+  "panel_temp_coeff_pct": -0.3,
+  "panel_noct_c": 45.0,
+  "material_categories": {
+    "modules": {
+      "rows": []
+    },
+    "inverters": {
+      "rows": []
+    },
+    "cables": {
+      "rows": []
+    },
+    "custom": {
+      "rows": []
+    }
+  },
+  "material_spreadsheet": {
+    "rows": 20,
+    "cols": 8,
+    "cells": {},
+    "col_widths": [],
+    "row_heights": []
+  },
+  "diagram_nodes": {},
+  "diagram_links": [],
+  "diagram_electrical_specs": {
+    "pmax_w": 450.0
+  },
+  "diagram_show_electrical": false,
+  "diagram_next_custom_id": 1,
+  "project_notes": "",
+  "cable_calc_params": {
+    "current_a": 10.0,
+    "voltage_v": 600.0,
+    "length_m": 50.0,
+    "resistivity": 0.017,
+    "target_drop_pct": 1.0
+  },
+  "cable_string_params": {},
+  "cable_mass_by_section": {},
+  "model_settings": {
+    "timezone": "Europe/Rome",
+    "imputation": "previous_week",
+    "shadow_model": "geometric",
+    "bypass_groups": 3,
+    "module_gap_x_mm": 0.0,
+    "module_gap_y_mm": 0.0,
+    "edge_clearance_mm": 0.0,
+    "bess_auxiliary_kw": 0.0,
+    "bess_annual_degradation_pct": 0.0,
+    "bess_lifetime_years": 15,
+    "annual_maintenance_eur": 0.0,
+    "discount_rate_pct": 0.0
+  },
+  "cable_inventory": [],
+  "equipment_links": {},
+  "shadow_source_signature": null,
+  "hourly_consumption_profile": null,
+  "hourly_pv_kwh": [],
+  "hourly_weather_profile": null,
+  "self_consumption_summary": {},
+  "bess_summary": {},
+  "two_bess_summary": {},
+  "economic_settings": {
+    "import_eur_kwh": 0.25,
+    "export_low_eur_kwh": 0.07,
+    "export_high_eur_kwh": 0.08,
+    "pv_capex_eur": 250000.0,
+    "bess_capex_each_eur": 50000.0,
+    "annual_maintenance_eur": 0.0,
+    "discount_rate_pct": 0.0,
+    "annual_degradation_pct": 0.0,
+    "lifetime_years": 15.0,
+    "replacement_year": 0.0,
+    "replacement_cost_eur": 0.0
+  },
+  "grid_connection_settings": {
+    "existing_contract_kw": 507.0,
+    "export_limit_kw": 300.0,
+    "export_limit_status": "requested_not_approved"
+  },
+  "electrical_route_plan_3d": {},
+  "electrical_checks": {},
+  "routing_settings": {
+    "inverter_height_m": 0.0,
+    "reserve_per_pole_m": 2.0
+  },
+  "energy_source_signature": null,
+  "electrical_design": {
+    "bess_count": 0,
+    "ac_voltage_v": "",
+    "power_factor": "",
+    "dc": {},
+    "ac": {},
+    "battery": {
+      "1": {
+        "cluster_1_to": "INV1",
+        "cluster_2_to": "INV2"
+      },
+      "2": {
+        "cluster_1_to": "",
+        "cluster_2_to": ""
+      }
+    },
+    "grid": {
+      "main_breaker_a": "",
+      "meter_id": "",
+      "interface_protection": "",
+      "export_control": "",
+      "transformer_connection": "",
+      "emergency_shutdown": ""
+    },
+    "source_fingerprint": ""
+  },
+  "energy_input_settings": {
+    "ac_factor": "0.90",
+    "bess": {
+      "nominal_kwh": "522.496",
+      "charge_kw": "250",
+      "discharge_kw": "150",
+      "soc_min_pct": "10",
+      "soc_max_pct": "90",
+      "round_trip_efficiency": "0.9"
+    }
+  },
+  "project_uid": "ae985be722ce48c1814e2d7899c2117c",
+  "panel_uids": {},
+  "layout_geometry": {},
+  "connection_review_required": [],
+  "shadow_result": {},
+  "shadow_simulation_results": {},
+  "schema_version": 2
+}

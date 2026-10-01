@@ -1,0 +1,109 @@
+"""Read-only audit probes. Synthetic state, no source project is overwritten."""
+import copy
+import json
+import sys
+from pathlib import Path
+from types import SimpleNamespace
+from collections import Counter
+sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
+from project_validation import normalize_project, audit_project
+from detailed_electrical import source_fingerprint
+from mixins.project_integrity import ProjectIntegrityMixin, EXTRA_FIELDS
+from mixins.installation_geometry import InstallationGeometryMixin
+from mixins.shadow_geometry import ShadowGeometryMixin
+from mixins.zone_tools import ZoneToolsMixin
+from self_consumption import production_from_program
+from mixins.spreadsheet_tools import SpreadsheetToolsMixin
+
+class Value:
+    def __init__(self,x):self.x=x
+    def get(self):return self.x
+
+class Geometry(InstallationGeometryMixin,ShadowGeometryMixin,ZoneToolsMixin):
+    def draw_grid(self):pass
+    def _update_zone_combo(self):pass
+    def _update_zone_entries_from_active(self):pass
+    def _clean_deleted_panels_from_strings(self):
+        self.strings={s:[c for c in coords if c in self.panels] for s,coords in self.strings.items()}
+
+def geometry():
+    g=Geometry();g.px_per_mm=.1;g.panel_width_mm=1000.;g.panel_height_mm=1700.
+    g.roof_zones=[{'id':1,'x1':0,'x2':500,'y1':0,'y2':510},
+                  {'id':2,'x1':1000,'x2':1500,'y1':0,'y2':510}]
+    g._recalculate_zone_grids();g.panels={(0,0):1,(100,0):2}
+    g.panel_blocks={};g.panel_orientations={};g.strings={'String 1':[(0,0),(100,0)]}
+    g.var_continuous_numbers=Value(False);g.selected_panel_coords=set()
+    return g
+
+out={}
+# Zone deletion shifts the row_base of surviving zones without migrating cells.
+g=geometry();before={str(c):g._get_panel_physical_center(c) for c in g.panels}
+g.selected_zone_indices={0};g.active_zone_idx=0;g.delete_active_zone()
+after={str(c):g._panel_rect(c) for c in g.panels}
+out['P01_zone_deletion']={'before_centres':before,'after_polygons':after,'string_coordinates':g.strings}
+assert not after['(100, 0)'] and after['(0, 0)'][0][0]>900
+# Regeneration keeps strings connected to coordinates even after moving the zone.
+g=geometry();old=g._get_panel_physical_center((0,0));g.roof_zones[0]['x1']+=300;g.roof_zones[0]['x2']+=300
+g.generate_panels_from_zones()
+out['P02_regeneration']={'old_panel_centre':old,'new_panel_centre':g._get_panel_physical_center((0,0)),
+                         'string_still_connected':(0,0) in g.strings['String 1']}
+assert out['P02_regeneration']['string_still_connected']
+# Save preparation silently renumbers panels and leaves orphan string entries in state.
+d={'panels':{'0,0':99},'strings':{'S':['0,0','9,9']},'blocks':{},'continuous_panel_numbers':True}
+a=SimpleNamespace(_sync_module_power=lambda:None,_project_snapshot=lambda:copy.deepcopy(d),
+                  self_ac_entry=Value('.9'),bess_entries={},strings={'S':[(0,0),(9,9)]})
+for name in EXTRA_FIELDS:setattr(a,name,None)
+ProjectIntegrityMixin._prepare_project_save(a)
+out['P03_P04_save']={'panels_after_prepare':str(a.panels),'orphan_retained_in_state':(9,9) in a.strings['S'],
+                     'orphan_removed_in_normalized_copy':'9,9' not in normalize_project(d)['strings']['S']}
+assert a.panels[(0,0)]==1 and (9,9) in a.strings['S']
+# Engineering verification fingerprint ignores several routing inputs.
+a={'panels':{'0,0':1},'px_per_mm':.1,'routing_settings':{'reserve_per_pole_m':2}}
+b=copy.deepcopy(a);b.update(px_per_mm=.2,routing_settings={'reserve_per_pole_m':9})
+out['P14_design_fingerprint']={'unchanged_after_scale_and_reserve_change':source_fingerprint(a)==source_fingerprint(b)}
+assert out['P14_design_fingerprint']['unchanged_after_scale_and_reserve_change']
+# A module sheet that loses a rating leaves old electrical numbers in the diagram.
+a=SimpleNamespace(material_categories={'modules':{'rows':[{'Pmax (W)':500}]}},
+                  panel_pmax_w=500.,panel_width_mm=1000.,panel_height_mm=1700.,
+                  diagram_electrical_specs={'vmp_v':40,'imp_a':12})
+ProjectIntegrityMixin._sync_module_power(a)
+out['P09_stale_module_ratings']=a.diagram_electrical_specs
+assert a.diagram_electrical_specs['vmp_v']==40
+# Production can include modules lacking string/block connections; absent inverter power defaults to 125.
+a=SimpleNamespace(panels={(0,0):1},panel_pmax_w=100000.,blocks={'INV1':{}},inverter_positions={},
+                  panel_orientations={},panel_tilt_deg=0,panel_azimuth_deg=180,pylon_img_pos=None,
+                  solar_latitude=45.,solar_longitude=9.,
+                  _compute_solar_position=lambda *args,**kwargs:(45,180),
+                  _get_clear_sky_poa_irradiance=lambda *args:1000,
+                  _estimate_panel_power_w=lambda *args:100000.)
+profile={'start_date':'2026-01-01','end_date':'2026-01-01','hourly_kwh':[0]*24,'imputed_indices':[]}
+pv=production_from_program(a,profile,1.)
+out['P16_P17_energy']={'unconnected_panel_production_kwh':sum(pv),'inverter_positions_present':bool(a.inverter_positions)}
+assert sum(pv)>0
+# Compare the three attached source projects without modifying them.
+out['attached_projects']={}
+for file in (Path(__file__).resolve().parents[1]/'exemples_joints').glob('*.json'):
+    original=json.loads(file.read_text());data=normalize_project(original)
+    uses=Counter(c for coords in data.get('strings',{}).values() for c in coords)
+    panels=data.get('panels',{})
+    out['attached_projects'][file.name]={
+        'module_count':len(panels),'project_name':data.get('project_name'),
+        'unassigned_modules':sum(uses[c]==0 for c in panels),
+        'duplicate_module_memberships':sum(uses[c]>1 for c in panels),
+        'zones':len(data.get('roof_zones',[])),
+        'zones_missing_cable_height':sum(z.get('installation_height_m') is None for z in data.get('roof_zones',[])),
+        'module_sheet_rows':len(data.get('material_categories',{}).get('modules',{}).get('rows',[])),
+        'string_overrides':len(data.get('cable_string_params',{})),
+        'linear_mass_inputs':len(data.get('cable_mass_by_section',{})),
+        'audit_message_count':len(audit_project(data)),
+        'metadata_missing_electrical_checks':not bool(data.get('electrical_checks'))}
+# Zone formula counts can differ from actual placed modules.
+for file in (Path(__file__).resolve().parents[1]/'exemples_joints').glob('*.json'):
+    data=normalize_project(json.loads(file.read_text()));g=Geometry()
+    for key in ('px_per_mm','panel_width_mm','panel_height_mm','roof_zones'):setattr(g,key,data[key])
+    g.panels={tuple(map(int,k.split(','))):v for k,v in data['panels'].items()};g.strings={}
+    g._recalculate_zone_grids()
+    variables=SpreadsheetToolsMixin._get_zone_string_insert_vars(g)
+    out['attached_projects'][file.name]['zone_formula_panel_total']=sum(v for k,v in variables.items() if k.endswith('PANEL_COUNT'))
+    out['attached_projects'][file.name]['layout_issue_count']=len(g._layout_issues())
+print(json.dumps(out,indent=2,ensure_ascii=False))
