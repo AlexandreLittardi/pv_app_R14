@@ -17,6 +17,15 @@ NODE_COLORS = {
 
 NODE_W = 150
 NODE_H = 46
+
+# Diagram text is deliberately screen-sized, not zoom-sized.  The boxes have a
+# minimum on-screen footprint so labels remain readable when the canvas is zoomed out.
+DIAGRAM_FONT_LABEL = 9
+DIAGRAM_FONT_DETAIL = 8
+DIAGRAM_FONT_DISTANCE = 9
+DIAGRAM_MIN_SCREEN_W = 150
+DIAGRAM_MIN_SCREEN_H = 46
+DIAGRAM_COLLISION_GAP = 14
 LINK_STYLES = {
     'solid': ('Solid line', ()),
     'dashed': ('Dashed line', (7, 4)),
@@ -224,6 +233,7 @@ class DiagramToolsMixin:
             self.diagram_links.append({"a": a, "b": b, "auto": True, "distance_m": dist})
 
         self.diagram_selected_node = None
+        self._resolve_diagram_collisions()
         self._refresh_diagram_list()
         self.draw_grid()
 
@@ -258,6 +268,7 @@ class DiagramToolsMixin:
             })
 
         self.diagram_selected_node = node_id
+        self._resolve_diagram_collisions()
         self._refresh_diagram_list()
         self.draw_grid()
 
@@ -418,12 +429,100 @@ class DiagramToolsMixin:
         self._refresh_diagram_list()
         self.draw_grid()
 
+    def _diagram_screen_node_size(self, node_id):
+        """Return the actual box size in canvas pixels for the current zoom.
+
+        Text stays at a fixed screen size, therefore the node cannot shrink below
+        the minimum area required to keep its text legible.
+        """
+        logical_w, logical_h = self._diagram_node_size(node_id)
+        zoom = max(0.05, float(self.zoom_level))
+        metric_lines = self._diagram_node_metric_lines(node_id)
+        node = self.diagram_nodes.get(node_id, {})
+        is_string = node.get('type') == 'string'
+
+        # Fixed-screen text requires a stable minimum box.  Electrical-detail
+        # nodes need more height because they contain several independent lines.
+        min_w = 225 if metric_lines else DIAGRAM_MIN_SCREEN_W
+        if metric_lines:
+            min_h = max(78, (65 if is_string else 42) + 17 * len(metric_lines) + 10)
+        elif is_string:
+            min_h = 52
+        else:
+            min_h = DIAGRAM_MIN_SCREEN_H
+
+        return max(logical_w * zoom, min_w), max(logical_h * zoom, min_h)
+
+    def _diagram_screen_centres(self):
+        """Canvas-space centres after applying zoom."""
+        zoom = max(0.05, float(self.zoom_level))
+        return {
+            node_id: (float(node.get('x', 0.0)) * zoom,
+                      float(node.get('y', 0.0)) * zoom)
+            for node_id, node in self.diagram_nodes.items()
+        }
+
+    def _resolve_diagram_collisions(self):
+        """Separate overlapping diagram blocks while preserving their columns.
+
+        The automatic topology is column-based (strings -> MPPT -> inverter), so
+        vertical displacement is the least disruptive correction.  Custom nodes
+        are treated the same way.  Positions are stored back in logical canvas
+        coordinates so links, hit testing and subsequent dragging stay coherent.
+        """
+        if len(self.diagram_nodes) < 2:
+            return
+
+        zoom = max(0.05, float(self.zoom_level))
+        gap = DIAGRAM_COLLISION_GAP
+        ids = list(self.diagram_nodes)
+
+        # A bounded relaxation is deterministic and sufficient for the small
+        # number of columns used by the single-line diagram.
+        for _pass in range(max(4, len(ids) * 2)):
+            moved = False
+            centres = self._diagram_screen_centres()
+
+            # Process top-to-bottom, then left-to-right.  Earlier nodes keep their
+            # location; later nodes are pushed down only as much as necessary.
+            ordered = sorted(ids, key=lambda nid: (centres[nid][1], centres[nid][0], nid))
+            placed = []
+            for node_id in ordered:
+                cx, cy = centres[node_id]
+                w, h = self._diagram_screen_node_size(node_id)
+
+                while True:
+                    collision = None
+                    for other_id in placed:
+                        ox, oy = centres[other_id]
+                        ow, oh = self._diagram_screen_node_size(other_id)
+                        x_overlap = abs(cx - ox) < (w + ow) / 2 + gap
+                        y_overlap = abs(cy - oy) < (h + oh) / 2 + gap
+                        if x_overlap and y_overlap:
+                            collision = (other_id, oy, oh)
+                            break
+                    if collision is None:
+                        break
+
+                    _other_id, oy, oh = collision
+                    cy = oy + (oh + h) / 2 + gap
+                    centres[node_id] = (cx, cy)
+                    moved = True
+
+                placed.append(node_id)
+
+            if moved:
+                for node_id, (cx, cy) in centres.items():
+                    self.diagram_nodes[node_id]['x'] = cx / zoom
+                    self.diagram_nodes[node_id]['y'] = cy / zoom
+            else:
+                break
+
     def _hit_test_diagram_node(self, cx, cy):
         zoom = self.zoom_level
         for node_id, node in self.diagram_nodes.items():
             nx, ny = node["x"] * zoom, node["y"] * zoom
-            w, h = self._diagram_node_size(node_id)
-            w, h = w * zoom, h * zoom
+            w, h = self._diagram_screen_node_size(node_id)
             if nx - w / 2 <= cx <= nx + w / 2 and ny - h / 2 <= cy <= ny + h / 2:
                 return node_id
         return None
@@ -467,8 +566,12 @@ class DiagramToolsMixin:
     # ========================================================
 
     def _draw_diagram(self):
-        zoom = self.zoom_level
+        zoom = max(0.05, float(self.zoom_level))
         max_w, max_h = 400, 300
+
+        # Zooming out brings logical centres closer together while text remains
+        # fixed-size.  Re-separate boxes before drawing so labels never pile up.
+        self._resolve_diagram_collisions()
 
         for link in self.diagram_links:
             a, b = self.diagram_nodes.get(link["a"]), self.diagram_nodes.get(link["b"])
@@ -477,63 +580,96 @@ class DiagramToolsMixin:
             ax, ay = a["x"] * zoom, a["y"] * zoom
             bx, by = b["x"] * zoom, b["y"] * zoom
             color = "#90A4AE" if link.get("auto") else "#D32F2F"
-            dash = () if link.get("auto") else LINK_STYLES.get(link.get('style', 'dashed'), LINK_STYLES['dashed'])[1]
+            dash = () if link.get("auto") else LINK_STYLES.get(
+                link.get('style', 'dashed'), LINK_STYLES['dashed'])[1]
+
             # Orthogonal bus lanes avoid diagonal crossings in generated trees.
-            a_width=self._diagram_node_size(link['a'])[0]*zoom
-            b_width=self._diagram_node_size(link['b'])[0]*zoom
-            if ax<bx:
-                left,right=ax+a_width/2,bx-b_width/2
+            a_width = self._diagram_screen_node_size(link['a'])[0]
+            b_width = self._diagram_screen_node_size(link['b'])[0]
+            if ax < bx:
+                left, right = ax + a_width / 2, bx - b_width / 2
             else:
-                left,right=ax-a_width/2,bx+b_width/2
-            lane=(left+right)/2
-            self.canvas.create_line(left,ay,lane,ay,lane,by,right,by,
-                                    fill=color,width=2,dash=dash)
+                left, right = ax - a_width / 2, bx + b_width / 2
+            lane = (left + right) / 2
+            self.canvas.create_line(
+                left, ay, lane, ay, lane, by, right, by,
+                fill=color, width=2, dash=dash
+            )
 
             dist_m = link.get("distance_m", 0.0)
             if link.get("distance_label") or (dist_m is not None and dist_m > 0):
-                mx, my = (left + lane) / 2, ay - 12 * zoom
-                # Note: _draw_text_with_bg est défini dans PathsToolsMixin
+                # Fixed 12 px visual offset: labels do not collapse toward the line.
+                mx, my = (left + lane) / 2, ay - 12
+                label = link.get("distance_label") or f"{dist_m:.1f} m"
                 if hasattr(self, "_draw_text_with_bg"):
-                    self._draw_text_with_bg(mx, my, link.get("distance_label") or f"{dist_m:.1f} m", fill="black", font=("Times New Roman", max(7, int(10 * zoom))))
+                    self._draw_text_with_bg(
+                        mx, my, label, fill="black",
+                        font=("Times New Roman", DIAGRAM_FONT_DISTANCE)
+                    )
                 else:
-                    self.canvas.create_text(mx, my, text=link.get("distance_label") or f"{dist_m:.1f} m", fill=color, font=("Arial", 8, "bold"))
+                    self.canvas.create_text(
+                        mx, my, text=label, fill=color,
+                        font=("Arial", DIAGRAM_FONT_DISTANCE, "bold")
+                    )
 
         for node_id, node in self.diagram_nodes.items():
             nx, ny = node["x"] * zoom, node["y"] * zoom
             metric_lines = self._diagram_node_metric_lines(node_id)
-            node_w, node_h = self._diagram_node_size(node_id)
-            w, h = node_w * zoom, node_h * zoom
+            w, h = self._diagram_screen_node_size(node_id)
             x1, y1, x2, y2 = nx - w / 2, ny - h / 2, nx + w / 2, ny + h / 2
             color = NODE_COLORS.get(node.get("type"), "#607D8B")
-            is_selected = node_id in getattr(self, "diagram_selected_nodes", set()) or node_id == self.diagram_selected_node
+            is_selected = (
+                node_id in getattr(self, "diagram_selected_nodes", set())
+                or node_id == self.diagram_selected_node
+            )
             outline = "#0055FF" if is_selected else "#263238"
             width_val = 3 if is_selected else 1
-            self.canvas.create_rectangle(x1, y1, x2, y2, fill=color, outline=outline, width=width_val)
+            self.canvas.create_rectangle(
+                x1, y1, x2, y2, fill=color, outline=outline, width=width_val
+            )
+
             label = node.get("label", node_id)
+            wrap_width = max(80, int(w - 12))
+
             if node.get("type") == "string" and node_id.startswith("str::"):
-                label = label.split(" | ")[0]  # anciens projets : longueur dans le label
+                label = label.split(" | ")[0]
                 length_m = self._get_string_length_m(node_id.split("::", 1)[1])
+
+                # All offsets and fonts are screen-space constants.
+                label_y = y1 + 15 if metric_lines else ny - 9
                 self.canvas.create_text(
-                    nx, ny - (h / 2 - 15 * zoom) if metric_lines else ny - 8 * zoom,
-                    text=label, fill="white",
-                    font=("Arial", max(7, int(9 * zoom)), "bold"), width=w - 10
+                    nx, label_y, text=label, fill="white",
+                    font=("Arial", DIAGRAM_FONT_LABEL, "bold"),
+                    width=wrap_width
                 )
-                length_txt = 'Module chain: scale not set' if length_m is None else f"Module chain ~ {length_m:.1f} m"
+
+                length_txt = (
+                    'Module chain: scale not set'
+                    if length_m is None else f"Module chain ~ {length_m:.1f} m"
+                )
+                length_y = y1 + 33 if metric_lines else ny + 10
                 self.canvas.create_text(
-                    nx, ny - (h / 2 - 33 * zoom) if metric_lines else ny + 10 * zoom,
-                    text=length_txt, fill="#FFEB3B",
-                    font=("Arial", max(7, int(10 * zoom)), "bold")
+                    nx, length_y, text=length_txt, fill="#FFEB3B",
+                    font=("Arial", DIAGRAM_FONT_LABEL, "bold"),
+                    width=wrap_width
                 )
             else:
+                label_y = y1 + 17 if metric_lines else ny
                 self.canvas.create_text(
-                    nx, ny - (h / 2 - 17 * zoom) if metric_lines else ny,
-                    text=label, fill="white",
-                    font=("Arial", max(7, int(9 * zoom)), "bold"), width=w - 10
+                    nx, label_y, text=label, fill="white",
+                    font=("Arial", DIAGRAM_FONT_LABEL, "bold"),
+                    width=wrap_width
                 )
+
+            metric_start = y1 + (65 if node.get('type') == 'string' else 42)
             for index, line in enumerate(metric_lines):
-                y = ny - h / 2 + (65 if node.get('type') == 'string' else 42) * zoom + index * 17 * zoom
-                self.canvas.create_text(nx, y, text=line, fill='#FFFFFF',
-                                        font=('Arial', max(7, int(8 * zoom))), width=w - 8)
+                y = metric_start + index * 17
+                self.canvas.create_text(
+                    nx, y, text=line, fill='#FFFFFF',
+                    font=('Arial', DIAGRAM_FONT_DETAIL),
+                    width=max(100, int(w - 10))
+                )
+
             max_w = max(max_w, x2 + 150)
             max_h = max(max_h, y2 + 150)
 

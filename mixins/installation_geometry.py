@@ -10,8 +10,19 @@ class InstallationGeometryMixin:
         from zone_registry import allocate_ranges
         settings=getattr(self,'model_settings',{})
         specs=[]
+        # Spacing follows the module axes, not the image axes.  A zone rotation
+        # rotates the complete lattice and its spacing together.
+        gap_width=settings.get('module_gap_width_mm',settings.get('module_gap_x_mm',0))
+        gap_length=settings.get('module_gap_length_mm',settings.get('module_gap_y_mm',0))
         for z in self.roof_zones:
-            z.update(gap_x_mm=settings.get('module_gap_x_mm',0),gap_y_mm=settings.get('module_gap_y_mm',0),edge_clearance_mm=settings.get('edge_clearance_mm',0))
+            z.update(
+                gap_width_mm=gap_width,
+                gap_length_mm=gap_length,
+                # Keep legacy keys populated for older report/project code.
+                gap_x_mm=gap_width,
+                gap_y_mm=gap_length,
+                edge_clearance_mm=settings.get('edge_clearance_mm',0)
+            )
             specs.append(grid_spec(z,self.panel_width_mm,self.panel_height_mm,self.px_per_mm))
         allocate_ranges(self.roof_zones,specs,getattr(self,'_remap_zone_rows',None))
 
@@ -29,7 +40,39 @@ class InstallationGeometryMixin:
 
     def _panel_pitch_mm(self):
         cfg=getattr(self,'model_settings',{})
-        return self.panel_width_mm+cfg.get('module_gap_x_mm',0),self.panel_height_mm+cfg.get('module_gap_y_mm',0)
+        gap_width=cfg.get('module_gap_width_mm',cfg.get('module_gap_x_mm',0))
+        gap_length=cfg.get('module_gap_length_mm',cfg.get('module_gap_y_mm',0))
+        return self.panel_width_mm+gap_width,self.panel_height_mm+gap_length
+
+    def _apply_panel_dimensions_and_gaps(self):
+        """Apply module dimensions and module-axis spacing from the Layout ribbon."""
+        try:
+            gap_width=float(self.entry_gap_width.get().replace(',','.'))
+            gap_length=float(self.entry_gap_length.get().replace(',','.'))
+            if (not math.isfinite(gap_width) or not math.isfinite(gap_length)
+                    or gap_width < 0 or gap_length < 0):
+                raise ValueError
+        except (ValueError, AttributeError):
+            messagebox.showerror(
+                'Layout',
+                'Panel gaps must be finite non-negative values in millimetres.',
+                parent=self.root
+            )
+            return
+
+        settings=getattr(self,'model_settings',{})
+        settings['module_gap_width_mm']=gap_width
+        settings['module_gap_length_mm']=gap_length
+        # Legacy aliases keep old save/report code compatible.
+        settings['module_gap_x_mm']=gap_width
+        settings['module_gap_y_mm']=gap_length
+
+        # Preserve the application's existing width/height validation and side
+        # effects, then rebuild the zone grids with the new physical spacing.
+        self.update_dimensions()
+        self._recalculate_zone_grids()
+        self._mark_geometry_change()
+        self.draw_grid()
 
     def _mark_geometry_change(self):
         self._invalidate_cable_routes()

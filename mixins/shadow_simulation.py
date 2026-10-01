@@ -322,130 +322,71 @@ class ShadowSimulationMixin:
                 # Échelle relative : vert pour le minimum de perte, rouge pour le maximum.
                 return _heat_rgb((pct - min_loss) / loss_range)
 
-            # On conserve la géométrie réelle du layout lorsqu'elle est disponible.
-            boxes = []
+            # Reuse the exact panel polygons from the main layout. This is important
+            # for zones with a non-zero layout rotation: the previous heatmap rebuilt
+            # axis-aligned rectangles and therefore displayed rotated zones incorrectly.
+            shapes = []
             if self.roof_zones and self.px_per_mm > 0:
                 self._recalculate_zone_grids()
-                
-                # Bounding box of all zones in image pixels
-                min_x_px = min(min(z["x1"], z["x2"]) for z in self.roof_zones)
-                max_x_px = max(max(z["x1"], z["x2"]) for z in self.roof_zones)
-                min_y_px = min(min(z["y1"], z["y2"]) for z in self.roof_zones)
-                max_y_px = max(max(z["y1"], z["y2"]) for z in self.roof_zones)
-                
-                # Total dimensions in mm
-                total_w_mm = (max_x_px - min_x_px) / self.px_per_mm
-                total_h_mm = (max_y_px - min_y_px) / self.px_per_mm
-                
-                # Intelligent scaling to fit the heatmap canvas while keeping panels readable.
-                fit_scale = min(900.0 / max(1.0, total_w_mm), 600.0 / max(1.0, total_h_mm))
-                
-                # Constraints to avoid panels being too tiny or too huge
-                min_scale = max(22.0 / self.panel_width_mm, 35.0 / self.panel_height_mm)
-                max_scale = min(120.0 / self.panel_width_mm, 200.0 / self.panel_height_mm)
-                display_scale = max(min_scale, min(max_scale, fit_scale)) * h_zoom
-                
-                pw = self.panel_width_mm * display_scale
-                ph = self.panel_height_mm * display_scale
+                raw = []
+                for coord in by_coord:
+                    poly = self._panel_rect(coord)
+                    if len(poly) >= 3:
+                        raw.append((coord, poly))
 
-                for z_idx, zone in enumerate(self.roof_zones):
-                    rows = int(zone.get("rows", 0))
-                    cols = int(zone.get("cols", 0))
-                    row_base = int(zone.get("row_base", z_idx * 100))
-                    
-                    zx = ((min(zone["x1"], zone["x2"]) - min_x_px) / self.px_per_mm) * display_scale
-                    zy = ((min(zone["y1"], zone["y2"]) - min_y_px) / self.px_per_mm) * display_scale
-                    
-                    off_x = float(zone.get("offset_x_mm", 0.0)) * display_scale
-                    off_y = float(zone.get("offset_y_mm", 0.0)) * display_scale
-                    
-                    grid_x = zx + off_x + 20
-                    grid_y = zy + off_y + 20
-
-                    for r in range(rows):
-                        for c in range(cols):
-                            coord = (row_base + r, c)
-                            if coord not in by_coord:
-                                continue
-                            x1 = grid_x + c * pw
-                            y1 = grid_y + r * ph
-                            boxes.append((coord, x1, y1, x1 + pw, y1 + ph))
+                if raw:
+                    all_points = [p for _, poly in raw for p in poly]
+                    min_x_px = min(p[0] for p in all_points)
+                    max_x_px = max(p[0] for p in all_points)
+                    min_y_px = min(p[1] for p in all_points)
+                    max_y_px = max(p[1] for p in all_points)
+                    total_w_mm = (max_x_px - min_x_px) / self.px_per_mm
+                    total_h_mm = (max_y_px - min_y_px) / self.px_per_mm
+                    fit_scale = min(900.0 / max(1.0, total_w_mm), 600.0 / max(1.0, total_h_mm))
+                    min_scale = max(22.0 / max(1.0, self.panel_width_mm), 35.0 / max(1.0, self.panel_height_mm))
+                    max_scale = min(120.0 / max(1.0, self.panel_width_mm), 200.0 / max(1.0, self.panel_height_mm))
+                    display_scale = max(min_scale, min(max_scale, fit_scale)) * h_zoom
+                    px_to_display = display_scale / self.px_per_mm
+                    for coord, poly in raw:
+                        shown = [((x-min_x_px)*px_to_display+20, (y-min_y_px)*px_to_display+20) for x,y in poly]
+                        shapes.append((coord, shown))
             else:
-                # Fallback : grille logique
                 coords = list(by_coord)
-                min_r = min(r for r, _ in coords)
-                max_r = max(r for r, _ in coords)
-                min_c = min(c for _, c in coords)
-                max_c = max(c for _, c in coords)
-                
-                num_rows = max(1, max_r - min_r + 1)
-                num_cols = max(1, max_c - min_c + 1)
-                
+                min_r = min(r for r, _ in coords); max_r = max(r for r, _ in coords)
+                min_c = min(c for _, c in coords); max_c = max(c for _, c in coords)
+                num_rows = max(1, max_r-min_r+1); num_cols = max(1, max_c-min_c+1)
                 cell_w = min(60, max(25, 900 // num_cols)) * h_zoom
                 cell_h = min(90, max(40, 600 // num_rows)) * h_zoom
-                
-                for r, c in coords:
-                    x1 = (c - min_c) * cell_w + 20
-                    y1 = (r - min_r) * cell_h + 20
-                    boxes.append(((r, c), x1, y1, x1 + cell_w - 3, y1 + cell_h - 3))
+                for r,c in coords:
+                    x1=(c-min_c)*cell_w+20; y1=(r-min_r)*cell_h+20
+                    shapes.append(((r,c),[(x1,y1),(x1+cell_w-3,y1),(x1+cell_w-3,y1+cell_h-3),(x1,y1+cell_h-3)]))
 
-            if not boxes:
-                heatmap_canvas.create_text(
-                    20, 20, anchor=tk.NW,
-                    text='No panels to display.',
-                    fill="#555555", font=("Arial", 10)
-                )
-                heatmap_canvas.configure(scrollregion=(0, 0, 600, 250))
+            if not shapes:
+                heatmap_canvas.create_text(20,20,anchor=tk.NW,text='No panels to display.',fill='#555555',font=('Arial',10))
+                heatmap_canvas.configure(scrollregion=(0,0,600,250))
                 return
 
-            max_x = max(b[3] for b in boxes) + 30
-            max_y = max(b[4] for b in boxes) + 30
+            max_x = max(x for _, poly in shapes for x, _ in poly) + 30
+            max_y = max(y for _, poly in shapes for _, y in poly) + 30
 
-            # Dessin des panneaux
-            for coord, x1, y1, x2, y2 in boxes:
+            # Draw the real panel polygons, including rotated installation zones.
+            for coord, poly in shapes:
                 item = by_coord[coord]
-                # On utilise la perte énergétique électrique moyenne du panneau.
-                pct = float(item.get("loss_pct", 0.0))
-                rgb = _heat_rgb_for(pct)
-                fill = _rgb_hex(rgb)
-                text_fill = _text_on(rgb)
-                
-                pw_box = x2 - x1
-                ph_box = y2 - y1
-
-                block_name = self.panel_blocks.get(coord)
-                outline = (
-                    self.blocks.get(block_name, {}).get("color", "#455A64")
-                    if block_name else "#455A64"
-                )
-                heatmap_canvas.create_rectangle(
-                    x1, y1, x2, y2,
-                    fill=fill, outline=outline, width=1
-                )
-                
-                # Adaptive font size
-                fsize = max(5, min(8, int(ph_box / 6)))
-                
-                if ph_box > 15:
-                    heatmap_canvas.create_text(
-                        (x1 + x2) / 2, (y1 + y2) / 2 - (fsize + 1),
-                        text=f"#{item['panel']}",
-                        fill=text_fill,
-                        font=("Arial", fsize, "bold")
-                    )
-                    heatmap_canvas.create_text(
-                        (x1 + x2) / 2, (y1 + y2) / 2 + (fsize),
-                        text=f"{pct:.1f}%",
-                        fill=text_fill,
-                        font=("Arial", fsize - 1, "bold")
-                    )
-                elif ph_box > 8:
-                    heatmap_canvas.create_text(
-                        (x1 + x2) / 2, (y1 + y2) / 2,
-                        text=f"{pct:.0f}%",
-                        fill=text_fill,
-                        font=("Arial", max(4, fsize), "bold")
-                    )
+                pct = float(item.get('loss_pct',0.0))
+                rgb = _heat_rgb_for(pct); fill = _rgb_hex(rgb); text_fill = _text_on(rgb)
+                xs=[p[0] for p in poly]; ys=[p[1] for p in poly]
+                cx=sum(xs)/len(xs); cy=sum(ys)/len(ys)
+                block_name=self.panel_blocks.get(coord)
+                outline=(self.blocks.get(block_name,{}).get('color','#455A64') if block_name else '#455A64')
+                heatmap_canvas.create_polygon(*[v for pt in poly for v in pt],fill=fill,outline=outline,width=1)
+                edges=[math.hypot(poly[(i+1)%len(poly)][0]-poly[i][0],poly[(i+1)%len(poly)][1]-poly[i][1]) for i in range(len(poly))]
+                short_side=min(edges) if edges else 0
+                fsize=max(4,min(8,int(short_side/3.2)))
+                if short_side>14:
+                    heatmap_canvas.create_text(cx,cy-(fsize+1),text=f"#{item['panel']}",fill=text_fill,font=('Arial',fsize,'bold'))
+                    heatmap_canvas.create_text(cx,cy+fsize,text=f"{pct:.1f}%",fill=text_fill,font=('Arial',max(4,fsize-1),'bold'))
+                elif short_side>7:
+                    heatmap_canvas.create_text(cx,cy,text=f"{pct:.0f}%",fill=text_fill,font=('Arial',max(4,fsize),'bold'))
 
             # Échelle visuelle dynamique en bas à gauche.
             lx, ly, lw, lh = 10, max_y - 24, 220, 14

@@ -29,11 +29,18 @@ def grid_spec(zone, width, height, scale):
     corners=[rotate(p,centre,-a) for p in [(x1,y1),(x2,y1),(x2,y2),(x1,y2)]]
     left=min(p[0] for p in corners); top=min(p[1] for p in corners)
     w=(max(p[0] for p in corners)-left)/scale; h=(max(p[1] for p in corners)-top)/scale
-    gx=zone.get('gap_x_mm',0);gy=zone.get('gap_y_mm',0);edge=zone.get('edge_clearance_mm',0)
-    cols=max(0,int((w-2*edge+gx+1e-7)//(width+gx)));rows=max(0,int((h-2*edge+gy+1e-7)//(height+gy)))
+    # Gaps are expressed in the MODULE'S local axes, before the zone rotation:
+    # - gap_width_mm  -> spacing along the module width
+    # - gap_length_mm -> spacing along the module length
+    # Legacy gap_x_mm/gap_y_mm saves remain supported.
+    gap_width=zone.get('gap_width_mm',zone.get('gap_x_mm',0))
+    gap_length=zone.get('gap_length_mm',zone.get('gap_y_mm',0))
+    edge=zone.get('edge_clearance_mm',0)
+    cols=max(0,int((w-2*edge+gap_width+1e-7)//(width+gap_width)))
+    rows=max(0,int((h-2*edge+gap_length+1e-7)//(height+gap_length)))
     ax={'Gau.':0,'Dro.':1}.get(zone.get('align_x'),.5)
     ay={'Haut':0,'Bas':1}.get(zone.get('align_y'),.5)
-    return rows,cols,(left-x1)/scale+(w-(cols*width+max(0,cols-1)*gx))*ax,(top-y1)/scale+(h-(rows*height+max(0,rows-1)*gy))*ay
+    return rows,cols,(left-x1)/scale+(w-(cols*width+max(0,cols-1)*gap_width))*ax,(top-y1)/scale+(h-(rows*height+max(0,rows-1)*gap_length))*ay
 
 
 def route_elevation(points, surfaces, scale, inverter_height, reserve, bridge_gap):

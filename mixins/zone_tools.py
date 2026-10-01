@@ -571,11 +571,19 @@ class ZoneToolsMixin:
                 zone["offset_y_mm"] = 0.0
                 continue
 
-            cols = int(avail_w_mm // self.panel_width_mm)
-            rows = int(avail_h_mm // self.panel_height_mm)
+            settings=getattr(self,'model_settings',{})
+            gap_width=settings.get('module_gap_width_mm',settings.get('module_gap_x_mm',0.0))
+            gap_length=settings.get('module_gap_length_mm',settings.get('module_gap_y_mm',0.0))
+            zone['gap_width_mm']=gap_width
+            zone['gap_length_mm']=gap_length
+            zone['gap_x_mm']=gap_width
+            zone['gap_y_mm']=gap_length
 
-            used_w_mm = cols * self.panel_width_mm
-            used_h_mm = rows * self.panel_height_mm
+            cols = max(0, int((avail_w_mm + gap_width) // (self.panel_width_mm + gap_width)))
+            rows = max(0, int((avail_h_mm + gap_length) // (self.panel_height_mm + gap_length)))
+
+            used_w_mm = cols * self.panel_width_mm + max(0, cols - 1) * gap_width
+            used_h_mm = rows * self.panel_height_mm + max(0, rows - 1) * gap_length
 
             rem_w_mm = avail_w_mm - used_w_mm
             rem_h_mm = avail_h_mm - used_h_mm

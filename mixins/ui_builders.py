@@ -465,12 +465,29 @@ class UIBuildersMixin:
         self.entry_width.insert(0, str(int(self.panel_width_mm)))
         self.entry_width.pack(side=tk.LEFT, padx=2)
 
-        ttk.Label(self.tab_layout, text="H:").pack(side=tk.LEFT, padx=2)
+        ttk.Label(self.tab_layout, text="L:").pack(side=tk.LEFT, padx=2)
         self.entry_height = ttk.Entry(self.tab_layout, width=5)
         self.entry_height.insert(0, str(int(self.panel_height_mm)))
         self.entry_height.pack(side=tk.LEFT, padx=2)
 
-        ttk.Button(self.tab_layout, text='Apply', command=self.update_dimensions).pack(side=tk.LEFT, padx=5)
+        settings=getattr(self,'model_settings',{})
+        gap_width=settings.get('module_gap_width_mm',settings.get('module_gap_x_mm',0))
+        gap_length=settings.get('module_gap_length_mm',settings.get('module_gap_y_mm',0))
+
+        ttk.Label(self.tab_layout, text='Gap W:').pack(side=tk.LEFT, padx=(6,2))
+        self.entry_gap_width = ttk.Entry(self.tab_layout, width=5)
+        self.entry_gap_width.insert(0, str(gap_width))
+        self.entry_gap_width.pack(side=tk.LEFT, padx=2)
+
+        ttk.Label(self.tab_layout, text='Gap L:').pack(side=tk.LEFT, padx=(4,2))
+        self.entry_gap_length = ttk.Entry(self.tab_layout, width=5)
+        self.entry_gap_length.insert(0, str(gap_length))
+        self.entry_gap_length.pack(side=tk.LEFT, padx=2)
+
+        ttk.Button(
+            self.tab_layout, text='Apply',
+            command=self._apply_panel_dimensions_and_gaps
+        ).pack(side=tk.LEFT, padx=5)
         self.var_continuous_numbers = tk.BooleanVar(value=True)
         ttk.Checkbutton(self.tab_layout, text="Consecutive panel numbers",
                         variable=self.var_continuous_numbers).pack(side=tk.LEFT, padx=5)

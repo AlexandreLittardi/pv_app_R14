@@ -242,12 +242,46 @@ class SafeProjectMixin:
     def _cancel_task(self):
         if getattr(self,'_active_job',None):self._active_job.cancel()
 
+    def _energy_progress_start(self):
+        if hasattr(self,'energy_progress'):
+            self.energy_progress.stop()
+            self.energy_progress.configure(mode='determinate',maximum=100,value=0)
+        if hasattr(self,'self_status'):
+            self.self_status.configure(text='Energy / BESS calculation in progress...')
+
+    def _energy_progress_update(self,current,total):
+        if not hasattr(self,'energy_progress'):
+            return
+        try:
+            current=float(current);total=float(total)
+        except (TypeError,ValueError):
+            return
+        if total>0:
+            self.energy_progress.configure(mode='determinate',maximum=total)
+            self.energy_progress['value']=max(0,min(current,total))
+        else:
+            self.energy_progress.configure(mode='indeterminate')
+            self.energy_progress.start(12)
+
+    def _energy_progress_finish(self,state='done'):
+        if not hasattr(self,'energy_progress'):
+            return
+        self.energy_progress.stop()
+        self.energy_progress.configure(mode='determinate')
+        if state=='done':
+            maximum=float(self.energy_progress.cget('maximum') or 100)
+            self.energy_progress['value']=maximum
+        else:
+            self.energy_progress['value']=0
+
     def _start_job(self,work,complete,label,signature=None,on_progress=None,on_failure=None,home_progress=False):
         if getattr(self,'_task_running',False):
             messagebox.showinfo('Calculation','A task is already running. Cancel it before starting another.');return
         from async_jobs import Job,Cancelled
         import queue
         self._task_running=True;self._update_history_buttons();self._active_job=Job(work)
+        is_energy_job=(label=='Energy calculation')
+        if is_energy_job:self._energy_progress_start()
         if home_progress and hasattr(self,'_home_task_start'):self._home_task_start(label)
         def poll():
             try:
@@ -257,7 +291,10 @@ class SafeProjectMixin:
                         current=payload[0] if len(payload)>0 else 0
                         total=payload[1] if len(payload)>1 else 0
                         detail=payload[2] if len(payload)>2 else None
-                        self.self_status.configure(text=f'{label}: {current}/{total}')
+                        if is_energy_job:
+                            self._energy_progress_update(current,total)
+                        else:
+                            self.self_status.configure(text=f'{label}: {current}/{total}')
                         if home_progress and hasattr(self,'_home_task_progress_update'):
                             self._home_task_progress_update(current,total,detail)
                         if on_progress:on_progress(*payload)
@@ -266,22 +303,29 @@ class SafeProjectMixin:
                         if kind=='done':
                             if signature is not None and signature!=self._energy_signature():
                                 self.self_status.configure(text='Inputs changed during calculation. Calculate again.')
+                                if is_energy_job:self._energy_progress_finish('failed')
                                 if home_progress and hasattr(self,'_home_task_finish'):self._home_task_finish('Inputs changed - export again',True)
                                 return
                             try:
                                 complete(payload)
+                                if is_energy_job:
+                                    self._energy_progress_finish('done')
+                                    self.self_status.configure(text='Energy / BESS calculation complete.')
                                 if home_progress and hasattr(self,'_home_task_finish'):self._home_task_finish(label+' complete')
                             except Exception as exc:
                                 self.self_status.configure(text='Result display failed.')
+                                if is_energy_job:self._energy_progress_finish('failed')
                                 if home_progress and hasattr(self,'_home_task_finish'):self._home_task_finish(label+' failed',True)
                                 messagebox.showerror(label,str(exc),parent=self.root)
                         elif isinstance(payload,Cancelled):
                             if on_failure:on_failure()
                             self.self_status.configure(text='Calculation cancelled.')
+                            if is_energy_job:self._energy_progress_finish('cancelled')
                             if home_progress and hasattr(self,'_home_task_finish'):self._home_task_finish(label+' cancelled',True)
                         else:
                             if on_failure:on_failure()
                             self.self_status.configure(text='Calculation failed.')
+                            if is_energy_job:self._energy_progress_finish('failed')
                             if home_progress and hasattr(self,'_home_task_finish'):self._home_task_finish(label+' failed',True)
                             messagebox.showerror(label,str(payload),parent=self.root)
                         return
@@ -292,6 +336,11 @@ class SafeProjectMixin:
     def _build_self_consumption_tab(self):
         super()._build_self_consumption_tab()
         ttk.Button(self.tab_energy,text='Cancel calculation',command=self._cancel_task).pack(side='left',padx=4)
+        self.energy_progress=ttk.Progressbar(
+            self.tab_energy,orient='horizontal',mode='determinate',
+            maximum=100,value=0,length=180
+        )
+        self.energy_progress.pack(side='left',padx=(8,4),pady=2)
 
     def _calculate_self_consumption(self):
         from energy_engine import freeze_app,calculate
